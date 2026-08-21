@@ -15,7 +15,16 @@ internal enum ArtifactGateState
 	/// <summary>No usable artifact — the caller should fail open (scale anyway).</summary>
 	Unavailable,
 
-	/// <summary>Registered and catalogued, but not enabled for this run.</summary>
+	/// <summary>
+	/// Registered and catalogued, but there is no run in progress — main menu, lobby,
+	/// character select, logbook. Distinct from <see cref="Off"/>: the player has not
+	/// declined the artifact, there is simply nothing to read yet. RunArtifactManager is
+	/// [RequireComponent(typeof(Run))] and assigns its instance in OnEnable, so it does not
+	/// exist until Run.Start.
+	/// </summary>
+	NoRun,
+
+	/// <summary>Registered and catalogued, run in progress, artifact NOT enabled.</summary>
 	Off,
 
 	/// <summary>Registered, catalogued and enabled for this run.</summary>
@@ -111,8 +120,7 @@ internal static class ExponentialArtifact
 			RunArtifactManager instance = RunArtifactManager.instance;
 			if ((Object)(object)instance == (Object)null)
 			{
-				// No run in progress (main menu, lobby, logbook).
-				return ArtifactGateState.Off;
+				return ArtifactGateState.NoRun;
 			}
 			return instance.IsArtifactEnabled(_def) ? ArtifactGateState.On : ArtifactGateState.Off;
 		}
