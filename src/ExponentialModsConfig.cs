@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using RoR2;
@@ -26,8 +25,6 @@ internal sealed class ExponentialModsConfig
 	private bool _catalogReady;
 
 	public readonly ConfigEntry<bool> Enabled;
-
-	public readonly ConfigEntry<bool> RequireArtifact;
 
 	public readonly ConfigEntry<int> LadderBase;
 
@@ -64,25 +61,12 @@ internal sealed class ExponentialModsConfig
 	/// <summary>Bumped when parsed rules change, so caches can invalidate cheaply.</summary>
 	public int Revision { get; private set; }
 
-	/// <summary>
-	/// True when an existing config file predated the "Require Artifact" key. BepInEx gives a
-	/// newly added key its default, so upgrading from 1.0.x silently switches scaling behind
-	/// the artifact. The plugin shouts about this rather than letting it look like a bug.
-	/// </summary>
-	public bool UpgradedFromPreArtifactConfig { get; private set; }
-
 	public ExponentialModsConfig(ConfigFile config, ManualLogSource log)
 	{
 		_log = log;
-		UpgradedFromPreArtifactConfig = DetectPreArtifactConfig(config);
 
 		Enabled = config.Bind(SectionLadder, "Enabled", true,
 			"Master switch. When OFF the mod does nothing and items stack the vanilla +1 per pickup.");
-
-		RequireArtifact = config.Bind(SectionLadder, "Require Artifact", true,
-			"When ON (default), the ladder only applies while \"Artifact of Exponents\" is enabled for the run, " +
-			"so you can turn scaling on and off from the artifact list in the lobby. " +
-			"When OFF, the ladder is always active and the artifact does nothing.");
 
 		LadderBase = config.Bind(SectionLadder, "Base", 2,
 			new ConfigDescription(
@@ -170,20 +154,6 @@ internal sealed class ExponentialModsConfig
 	public string DescribeLadder()
 	{
 		return ExponentialLadder.DescribeLadder(EffectiveBase, MaxExponent.Value, EffectiveCeiling);
-	}
-
-	private static bool DetectPreArtifactConfig(ConfigFile config)
-	{
-		try
-		{
-			string path = config.ConfigFilePath;
-			return !string.IsNullOrEmpty(path) && File.Exists(path)
-				&& File.ReadAllText(path).IndexOf("Require Artifact", StringComparison.Ordinal) < 0;
-		}
-		catch
-		{
-			return false;
-		}
 	}
 
 	public void RebuildBlockList()

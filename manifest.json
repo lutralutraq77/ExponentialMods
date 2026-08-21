@@ -1,14 +1,11 @@
 {
   "namespace": "lutralutra",
   "name": "ExponentialMods",
-  "version_number": "1.1.2",
-  "website_url": "https://github.com/lutralutraq77/ExponentialMods",
-  "description": "Every item stacks on a pure power ladder: base^n. Toggle it in-game with Artifact of Exponents. Configurable base, max exponent and max stack, bounded by the 32-bit integer limit.",
+  "version_number": "1.0.1",
+  "website_url": "",
+  "description": "Every item stacks on a pure power ladder: base^n. Pick the base, the max exponent and the max stack, bounded by the 32-bit integer limit Risk of Rain 2 stores item counts in.",
   "dependencies": [
     "bbepis-BepInExPack-5.4.2121",
-    "RiskofThunder-HookGenPatcher-1.2.9",
-    "RiskofThunder-R2API_Core-5.3.0",
-    "RiskofThunder-R2API_Language-1.1.0",
-    "RiskofThunder-R2API_ContentManagement-1.0.11"
+    "RiskofThunder-HookGenPatcher-1.2.9"
   ]
 }

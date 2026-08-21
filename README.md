@@ -18,7 +18,6 @@ stops, and every item in the game follows it.
 | Setting | Section | Default | What it does |
 |---|---|---|---|
 | **Enabled** | Ladder | `true` | Master switch. Off = vanilla +1 per pickup. |
-| **Require Artifact** | Ladder | `true` | Gate scaling behind **Artifact of Exponents** so you can toggle it in the lobby. Off = always active. |
 | **Base** | Ladder | `2` | The ladder base. Range 2–64. |
 | **Show Ladder In Item Descriptions** | Ladder | `true` | One-line summary on item tooltips. |
 | **Max Exponent** | Limits | `0` (auto) | Highest `n`, so the top rung is `base^n`. `0` = the largest `n` that still fits under **Max Items**. |
@@ -42,26 +41,6 @@ Leaving **Max Exponent** at `0` picks the tallest ladder that fits under **Max I
 Because the top rung must be an exact power, it can settle a little below the ceiling —
 base 3 under 16,777,216 tops out at `3^15 = 14,348,907`. Once you are there the mod stops
 adding stacks and pickups go back to the vanilla +1. It never takes items away.
-
----
-
-## Artifact of Exponents
-
-The mod registers an artifact so you can switch scaling on and off per run, from the artifact
-list in the lobby — no config editing, no restart.
-
-**Require Artifact** is `true` by default, so out of the box the ladder only applies while the
-artifact is enabled. Turn it off in the config if you would rather the mod were simply always
-on; the artifact still appears in the list but stops gating anything.
-
-The startup log states which mode is active:
-
-```
-Require Artifact is ON: scaling applies only while Artifact of Exponents is enabled for the run.
-```
-
-If the artifact ever fails to register (missing R2API, for example), the mod logs the error and
-falls back to always-on rather than silently disabling itself.
 
 ---
 
@@ -98,7 +77,6 @@ Internally the mod never performs an unchecked `(int)` cast: every rung is compu
 A pickup is accelerated only when **all** of these hold:
 
 - **Enabled** is on.
-- **Artifact of Exponents** is enabled for the run — unless **Require Artifact** is off.
 - The game is granting exactly **one** stack. Bulk grants (command essence, scrappers,
   other mods handing out piles) pass through untouched.
 - The code is running on the **server** — `Inventory.GiveItemPermanent` is `[Server]`-only in
@@ -114,7 +92,6 @@ Otherwise you get ordinary Risk of Rain 2 behaviour.
 
 - BepInEx (`bbepis-BepInExPack`)
 - HookGenPatcher (`RiskofThunder-HookGenPatcher`) — provides the `MMHOOK_RoR2` assembly
-- R2API Core, Language and ContentManagement — used to register the artifact
 
 ## Install
 

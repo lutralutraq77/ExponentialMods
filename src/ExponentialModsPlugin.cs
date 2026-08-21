@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using BepInEx;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
 using Object = UnityEngine.Object;
-using Path = System.IO.Path;
 
 namespace ExponentialMods;
 
@@ -16,16 +14,13 @@ namespace ExponentialMods;
 /// respects the 32-bit integer Risk of Rain 2 stores item counts in.
 /// </summary>
 [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
-[BepInDependency("com.bepis.r2api", BepInDependency.DependencyFlags.HardDependency)]
-[BepInDependency("com.bepis.r2api.language", BepInDependency.DependencyFlags.HardDependency)]
-[BepInDependency("com.bepis.r2api.content_management", BepInDependency.DependencyFlags.HardDependency)]
 public sealed class ExponentialModsPlugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.lutralutra.exponentialmods";
 
 	public const string PluginName = "Exponential Mods";
 
-	public const string PluginVersion = "1.1.2";
+	public const string PluginVersion = "1.0.1";
 
 	private ExponentialModsConfig _config;
 
@@ -50,8 +45,6 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 	private void Awake()
 	{
 		_config = new ExponentialModsConfig(Config, Logger);
-		// Always register, so the artifact shows up in the lobby list even if the gate is off.
-		ExponentialArtifact.Register(Path.GetDirectoryName(Info.Location) ?? string.Empty, Logger);
 
 		// Hook GiveItemPermanent, NOT GiveItem. In current Risk of Rain 2 every public
 		// grant overload -- GiveItem(ItemIndex,int), GiveItem(ItemDef,int),
@@ -63,27 +56,9 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 		On.RoR2.Language.GetLocalizedStringByToken += Language_GetLocalizedStringByToken;
 		On.RoR2.CharacterMaster.OnBodyStart += CharacterMaster_OnBodyStart;
 		RoR2Application.onFixedUpdate += OnFixedUpdate;
-		// _localStacks feeds the tooltip. Without this it keeps the last run's counts for
-		// the rest of the process, so the main-menu logbook would advertise "4,096 -> 8,192"
-		// for an item the player no longer owns.
-		Run.onRunDestroyGlobal += OnRunDestroyed;
 		RoR2Application.onLoad = (Action)Delegate.Combine(RoR2Application.onLoad, new Action(OnCatalogReady));
 
 		Logger.LogInfo($"{PluginName} {PluginVersion} loaded. Ladder: {_config.DescribeLadder()}");
-		Logger.LogInfo(_config.RequireArtifact.Value
-			? "Require Artifact is ON: scaling applies only while Artifact of Exponents is enabled for the run."
-			: "Require Artifact is OFF: scaling is always active.");
-		if (_config.UpgradedFromPreArtifactConfig && _config.RequireArtifact.Value)
-		{
-			Logger.LogWarning("Your config predates the artifact option, so \"Require Artifact\" has just defaulted to ON. " +
-				"Scaling will NOT apply until you enable Artifact of Exponents when starting a run. " +
-				"Set \"Require Artifact = false\" in the config to restore the previous always-on behaviour.");
-		}
-	}
-
-	private void OnRunDestroyed(Run run)
-	{
-		_localStacks.Clear();
 	}
 
 	private void OnCatalogReady()
@@ -95,52 +70,10 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 
 	// ---------------------------------------------------------------- eligibility
 
-	/// <summary>
-	/// The artifact gate. When "Require Artifact" is on, scaling only happens while
-	/// Artifact of Exponents is enabled for the run -- an in-game on/off switch.
-	/// If the artifact failed to register we fall back to always-on rather than
-	/// silently disabling the whole mod.
-	/// </summary>
-	private bool IsLadderActive()
-	{
-		if (_config == null || !_config.Enabled.Value)
-		{
-			return false;
-		}
-		if (!_config.RequireArtifact.Value)
-		{
-			return true;
-		}
-		ArtifactGateState state = ExponentialArtifact.GetState();
-		// Fail OPEN when there is no usable artifact. A stacking mod that silently does
-		// nothing is far worse than one that scales when it arguably should not have.
-		if (state == ArtifactGateState.Unavailable)
-		{
-			return true;
-		}
-		// NoRun gates identically to Off: no run means no grants to scale anyway.
-		return state == ArtifactGateState.On;
-	}
-
-	/// <summary>
-	/// Whether to describe the ladder on an item's tooltip. Deliberately NOT gated on the
-	/// artifact: the lobby, character select and logbook are exactly where a player checks
-	/// whether the mod is installed and whether to tick the artifact, and hiding the line
-	/// there makes a working mod look broken.
-	/// </summary>
-	private bool ShouldDescribe(ItemDef def)
-	{
-		if (_config == null || !_config.Enabled.Value || (Object)(object)def == (Object)null)
-		{
-			return false;
-		}
-		return _config.IsTierAllowed(def) && !_config.IsBlocked(def);
-	}
-
 	private bool ShouldScale(Inventory inventory, ItemIndex itemIndex, out ItemDef itemDef)
 	{
 		itemDef = null;
-		if (!IsLadderActive())
+		if (_config == null || !_config.Enabled.Value)
 		{
 			return false;
 		}
@@ -163,7 +96,7 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 
 	private bool ShouldScale(ItemDef def)
 	{
-		if (!IsLadderActive() || (Object)(object)def == (Object)null)
+		if (_config == null || !_config.Enabled.Value || (Object)(object)def == (Object)null)
 		{
 			return false;
 		}
@@ -267,7 +200,7 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 			return text;
 		}
 		ItemDef itemDef = FindItemDefForDescToken(token);
-		if (!ShouldDescribe(itemDef))
+		if (!ShouldScale(itemDef))
 		{
 			return text;
 		}
@@ -356,26 +289,7 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 			current = stack;
 		}
 		int next = _config.GetNextRung(current);
-		ArtifactGateState gate = ExponentialArtifact.GetState();
-		bool active = !_config.RequireArtifact.Value || gate == ArtifactGateState.On || gate == ArtifactGateState.Unavailable;
-
-		// Only state the jump as fact when it would actually happen. With the gate closed the
-		// real next pickup is vanilla +1, so an unqualified "Next pickup: 16 -> 32" directly
-		// contradicts the caveat printed under it — and is read first.
-		string suffix = _cachedTooltip + (active
-			? $"\n<color=#88D5FF>Next pickup: {current:N0} → {next:N0} (+{next - current:N0})</color>"
-			: $"\n<color=#AAAAAA>With the artifact: {current:N0} → {next:N0} (+{next - current:N0})</color>");
-
-		if (!active)
-		{
-			// "Requires" outside a run, "Inactive" inside one. Saying "enable it" in the
-			// lobby to a player who has already ticked it is the same false alarm 1.1.1 set
-			// out to remove, just by another route.
-			suffix += gate == ArtifactGateState.NoRun
-				? "\n<color=#FFB454>Requires Artifact of Exponents</color>"
-				: "\n<color=#FFB454>Inactive: enable Artifact of Exponents</color>";
-		}
-		return suffix;
+		return _cachedTooltip + $"\n<color=#88D5FF>Next pickup: {current:N0} → {next:N0} (+{next - current:N0})</color>";
 	}
 
 	private void RebuildTooltipTokenCache()
