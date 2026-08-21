@@ -26,6 +26,8 @@ internal sealed class ExponentialModsConfig
 
 	public readonly ConfigEntry<bool> Enabled;
 
+	public readonly ConfigEntry<bool> RequireArtifact;
+
 	public readonly ConfigEntry<int> LadderBase;
 
 	public readonly ConfigEntry<int> MaxExponent;
@@ -67,6 +69,11 @@ internal sealed class ExponentialModsConfig
 
 		Enabled = config.Bind(SectionLadder, "Enabled", true,
 			"Master switch. When OFF the mod does nothing and items stack the vanilla +1 per pickup.");
+
+		RequireArtifact = config.Bind(SectionLadder, "Require Artifact", true,
+			"When ON (default), the ladder only applies while \"Artifact of Exponents\" is enabled for the run, " +
+			"so you can turn scaling on and off from the artifact list in the lobby. " +
+			"When OFF, the ladder is always active and the artifact does nothing.");
 
 		LadderBase = config.Bind(SectionLadder, "Base", 2,
 			new ConfigDescription(

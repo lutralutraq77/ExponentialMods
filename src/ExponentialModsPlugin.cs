@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using BepInEx;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
 using Object = UnityEngine.Object;
+using Path = System.IO.Path;
 
 namespace ExponentialMods;
 
@@ -14,13 +16,16 @@ namespace ExponentialMods;
 /// respects the 32-bit integer Risk of Rain 2 stores item counts in.
 /// </summary>
 [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
+[BepInDependency("com.bepis.r2api", BepInDependency.DependencyFlags.HardDependency)]
+[BepInDependency("com.bepis.r2api.language", BepInDependency.DependencyFlags.HardDependency)]
+[BepInDependency("com.bepis.r2api.content_management", BepInDependency.DependencyFlags.HardDependency)]
 public sealed class ExponentialModsPlugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.lutralutra.exponentialmods";
 
 	public const string PluginName = "Exponential Mods";
 
-	public const string PluginVersion = "1.0.1";
+	public const string PluginVersion = "1.1.0";
 
 	private ExponentialModsConfig _config;
 
@@ -45,6 +50,8 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 	private void Awake()
 	{
 		_config = new ExponentialModsConfig(Config, Logger);
+		// Always register, so the artifact shows up in the lobby list even if the gate is off.
+		ExponentialArtifact.Register(Path.GetDirectoryName(Info.Location) ?? string.Empty, Logger);
 
 		// Hook GiveItemPermanent, NOT GiveItem. In current Risk of Rain 2 every public
 		// grant overload -- GiveItem(ItemIndex,int), GiveItem(ItemDef,int),
@@ -59,6 +66,9 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 		RoR2Application.onLoad = (Action)Delegate.Combine(RoR2Application.onLoad, new Action(OnCatalogReady));
 
 		Logger.LogInfo($"{PluginName} {PluginVersion} loaded. Ladder: {_config.DescribeLadder()}");
+		Logger.LogInfo(_config.RequireArtifact.Value
+			? "Require Artifact is ON: scaling applies only while Artifact of Exponents is enabled for the run."
+			: "Require Artifact is OFF: scaling is always active.");
 	}
 
 	private void OnCatalogReady()
@@ -70,10 +80,33 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 
 	// ---------------------------------------------------------------- eligibility
 
+	/// <summary>
+	/// The artifact gate. When "Require Artifact" is on, scaling only happens while
+	/// Artifact of Exponents is enabled for the run -- an in-game on/off switch.
+	/// If the artifact failed to register we fall back to always-on rather than
+	/// silently disabling the whole mod.
+	/// </summary>
+	private bool IsLadderActive()
+	{
+		if (_config == null || !_config.Enabled.Value)
+		{
+			return false;
+		}
+		if (!_config.RequireArtifact.Value)
+		{
+			return true;
+		}
+		if (!ExponentialArtifact.IsRegistered)
+		{
+			return true;
+		}
+		return ExponentialArtifact.IsEnabled();
+	}
+
 	private bool ShouldScale(Inventory inventory, ItemIndex itemIndex, out ItemDef itemDef)
 	{
 		itemDef = null;
-		if (_config == null || !_config.Enabled.Value)
+		if (!IsLadderActive())
 		{
 			return false;
 		}
@@ -96,7 +129,7 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 
 	private bool ShouldScale(ItemDef def)
 	{
-		if (_config == null || !_config.Enabled.Value || (Object)(object)def == (Object)null)
+		if (!IsLadderActive() || (Object)(object)def == (Object)null)
 		{
 			return false;
 		}
