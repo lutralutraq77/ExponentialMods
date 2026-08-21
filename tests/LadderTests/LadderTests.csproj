@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>LadderTests</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The ladder maths is pure and has no Unity/RoR2 dependency, so it tests standalone. -->
+    <Compile Include="..\..\src\ExponentialLadder.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>

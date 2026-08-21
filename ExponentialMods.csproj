@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>ExponentialMods</AssemblyName>
+    <RootNamespace>ExponentialMods</RootNamespace>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>11.0</LangVersion>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0436;CS0618;CS1701;CS1702;NU1701</NoWarn>
+    <DebugType>none</DebugType>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="src\**\*.cs" />
+  </ItemGroup>
+  <!-- Reference assemblies are NOT redistributable; see README "Building". -->
+  <ItemGroup>
+    <Reference Include="$(MSBuildThisFileDirectory)libs\*.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

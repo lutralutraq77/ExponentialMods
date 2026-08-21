@@ -1,0 +1,16 @@
+# Build output
+bin/
+obj/
+
+# Reference assemblies: Risk of Rain 2, Unity, BepInEx and MMHOOK DLLs.
+# These are NOT redistributable - populate libs/ locally, see README.
+libs/
+*.dll
+
+# Packaged output
+dist/
+*.zip
+
+.vs/
+.idea/
+*.user
