@@ -1,7 +1,7 @@
 {
   "namespace": "lutralutra",
   "name": "ExponentialMods",
-  "version_number": "1.1.0",
+  "version_number": "1.1.1",
   "website_url": "https://github.com/lutralutraq77/ExponentialMods",
   "description": "Every item stacks on a pure power ladder: base^n. Toggle it in-game with Artifact of Exponents. Configurable base, max exponent and max stack, bounded by the 32-bit integer limit.",
   "dependencies": [

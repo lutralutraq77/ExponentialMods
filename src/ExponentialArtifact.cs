@@ -9,6 +9,19 @@ using Path = System.IO.Path;
 
 namespace ExponentialMods;
 
+/// <summary>How the artifact gate currently stands.</summary>
+internal enum ArtifactGateState
+{
+	/// <summary>No usable artifact — the caller should fail open (scale anyway).</summary>
+	Unavailable,
+
+	/// <summary>Registered and catalogued, but not enabled for this run.</summary>
+	Off,
+
+	/// <summary>Registered, catalogued and enabled for this run.</summary>
+	On,
+}
+
 /// <summary>
 /// Registers "Artifact of Exponents", the in-game on/off switch for the ladder.
 ///
@@ -23,11 +36,12 @@ internal static class ExponentialArtifact
 
 	private static ArtifactDef _def;
 
-	public static bool IsRegistered => (Object)(object)_def != (Object)null;
+	/// <summary>Set only when ContentAddition actually accepted the def.</summary>
+	private static bool _accepted;
 
 	public static void Register(string pluginDirectory, ManualLogSource log)
 	{
-		if (IsRegistered)
+		if (_accepted)
 		{
 			return;
 		}
@@ -40,49 +54,101 @@ internal static class ExponentialArtifact
 			_def.cachedName = "ExponentialModsExponents";
 			_def.nameToken = NameToken;
 			_def.descriptionToken = DescriptionToken;
+			// ArtifactDef.artifactIndex is a plain auto-property, so it defaults to 0 -- a
+			// VALID catalog index -- rather than ArtifactIndex.None (-1). If this def never
+			// reaches the catalog, an unguarded IsArtifactEnabled(def) would silently read
+			// the on/off state of whichever artifact occupies slot 0. Start at None so a
+			// stale index can never masquerade as ours.
+			_def.artifactIndex = ArtifactIndex.None;
 
-			Texture2D icon = TryLoadTexture(pluginDirectory, log, "icon.png");
-			_def.smallIconSelectedSprite = ((Object)(object)icon != (Object)null)
-				? MakeSprite(icon, "exponentialmods_artifact_on")
-				: MakeFlatSprite(new Color(0.84f, 0.71f, 1f, 1f), "exponentialmods_artifact_on");
-			_def.smallIconDeselectedSprite = ((Object)(object)icon != (Object)null)
-				? MakeSprite(Darken(icon, 0.45f), "exponentialmods_artifact_off")
-				: MakeFlatSprite(new Color(0.22f, 0.22f, 0.28f, 1f), "exponentialmods_artifact_off");
+			// Icon problems must not cost us the artifact: build the sprites in their own
+			// try so a decode failure degrades to the flat fallback instead of aborting
+			// registration entirely.
+			BuildIcons(pluginDirectory, log, out var selected, out var deselected);
+			_def.smallIconSelectedSprite = selected;
+			_def.smallIconDeselectedSprite = deselected;
 
-			ContentAddition.AddArtifactDef(_def);
+			// AddArtifactDef returns false (and only logs) when an icon is null or the
+			// ArtifactCatalog has already initialised. Dropping that result would leave
+			// _def assigned and make us report a success we did not achieve.
+			if (!ContentAddition.AddArtifactDef(_def))
+			{
+				_def = null;
+				_accepted = false;
+				log.LogError("ContentAddition rejected Artifact of Exponents. Continuing without it: scaling will be always-on.");
+				return;
+			}
+			_accepted = true;
 			log.LogInfo("Registered Artifact of Exponents.");
 		}
 		catch (Exception ex)
 		{
-			// A failed artifact registration must never take the whole mod down: without it
-			// IsEnabled() reports false, and the config guard falls back to always-on.
 			_def = null;
+			_accepted = false;
 			log.LogError("Failed to register Artifact of Exponents, continuing without it: " + ex);
 		}
 	}
 
 	/// <summary>
-	/// True when the artifact is active for the current run. Returns false when the artifact
-	/// could not be registered or no run is in progress.
+	/// The gate's current state. <see cref="ArtifactGateState.Unavailable"/> means callers
+	/// should fail open rather than disable scaling — a stacking mod that silently does
+	/// nothing is the worst possible failure.
 	/// </summary>
-	public static bool IsEnabled()
+	public static ArtifactGateState GetState()
 	{
 		try
 		{
-			if (!IsRegistered)
+			if (!_accepted || (Object)(object)_def == (Object)null)
 			{
-				return false;
+				return ArtifactGateState.Unavailable;
+			}
+			// Confirm the catalog really points back at this def before trusting the index.
+			ArtifactIndex index = _def.artifactIndex;
+			if (index == ArtifactIndex.None || (Object)(object)ArtifactCatalog.GetArtifactDef(index) != (Object)(object)_def)
+			{
+				return ArtifactGateState.Unavailable;
 			}
 			RunArtifactManager instance = RunArtifactManager.instance;
 			if ((Object)(object)instance == (Object)null)
 			{
-				return false;
+				// No run in progress (main menu, lobby, logbook).
+				return ArtifactGateState.Off;
 			}
-			return instance.IsArtifactEnabled(_def);
+			return instance.IsArtifactEnabled(_def) ? ArtifactGateState.On : ArtifactGateState.Off;
 		}
 		catch
 		{
-			return false;
+			return ArtifactGateState.Unavailable;
+		}
+	}
+
+	private static void BuildIcons(string pluginDirectory, ManualLogSource log, out Sprite selected, out Sprite deselected)
+	{
+		selected = null;
+		deselected = null;
+		try
+		{
+			Texture2D icon = TryLoadTexture(pluginDirectory, log, "icon.png");
+			if ((Object)(object)icon != (Object)null)
+			{
+				selected = MakeSprite(icon, "exponentialmods_artifact_on");
+				deselected = MakeSprite(Darken(icon, 0.45f), "exponentialmods_artifact_off");
+			}
+		}
+		catch (Exception ex)
+		{
+			log.LogWarning("Artifact icon could not be prepared, using a plain fallback: " + ex.Message);
+			selected = null;
+			deselected = null;
+		}
+		// R2API rejects the def outright if either sprite is null, so always supply something.
+		if ((Object)(object)selected == (Object)null)
+		{
+			selected = MakeFlatSprite(new Color(0.84f, 0.71f, 1f, 1f), "exponentialmods_artifact_on");
+		}
+		if ((Object)(object)deselected == (Object)null)
+		{
+			deselected = MakeFlatSprite(new Color(0.22f, 0.22f, 0.28f, 1f), "exponentialmods_artifact_off");
 		}
 	}
 
@@ -95,23 +161,16 @@ internal static class ExponentialArtifact
 		string path = Path.Combine(directory, fileName);
 		if (!File.Exists(path))
 		{
+			log.LogWarning("Artifact icon not found next to the plugin (" + path + "); using a plain fallback.");
 			return null;
 		}
-		try
+		Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+		if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(path)))
 		{
-			Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-			if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(path)))
-			{
-				log.LogWarning("Artifact icon could not be decoded: " + path);
-				return null;
-			}
-			return tex;
-		}
-		catch (Exception ex)
-		{
-			log.LogWarning("Artifact icon could not be read (" + path + "): " + ex.Message);
+			log.LogWarning("Artifact icon could not be decoded: " + path);
 			return null;
 		}
+		return tex;
 	}
 
 	private static Sprite MakeSprite(Texture2D texture, string name)

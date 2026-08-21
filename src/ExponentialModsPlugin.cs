@@ -25,7 +25,7 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 
 	public const string PluginName = "Exponential Mods";
 
-	public const string PluginVersion = "1.1.0";
+	public const string PluginVersion = "1.1.1";
 
 	private ExponentialModsConfig _config;
 
@@ -69,6 +69,12 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 		Logger.LogInfo(_config.RequireArtifact.Value
 			? "Require Artifact is ON: scaling applies only while Artifact of Exponents is enabled for the run."
 			: "Require Artifact is OFF: scaling is always active.");
+		if (_config.UpgradedFromPreArtifactConfig && _config.RequireArtifact.Value)
+		{
+			Logger.LogWarning("Your config predates the artifact option, so \"Require Artifact\" has just defaulted to ON. " +
+				"Scaling will NOT apply until you enable Artifact of Exponents when starting a run. " +
+				"Set \"Require Artifact = false\" in the config to restore the previous always-on behaviour.");
+		}
 	}
 
 	private void OnCatalogReady()
@@ -96,11 +102,29 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 		{
 			return true;
 		}
-		if (!ExponentialArtifact.IsRegistered)
+		ArtifactGateState state = ExponentialArtifact.GetState();
+		// Fail OPEN when there is no usable artifact. A stacking mod that silently does
+		// nothing is far worse than one that scales when it arguably should not have.
+		if (state == ArtifactGateState.Unavailable)
 		{
 			return true;
 		}
-		return ExponentialArtifact.IsEnabled();
+		return state == ArtifactGateState.On;
+	}
+
+	/// <summary>
+	/// Whether to describe the ladder on an item's tooltip. Deliberately NOT gated on the
+	/// artifact: the lobby, character select and logbook are exactly where a player checks
+	/// whether the mod is installed and whether to tick the artifact, and hiding the line
+	/// there makes a working mod look broken.
+	/// </summary>
+	private bool ShouldDescribe(ItemDef def)
+	{
+		if (_config == null || !_config.Enabled.Value || (Object)(object)def == (Object)null)
+		{
+			return false;
+		}
+		return _config.IsTierAllowed(def) && !_config.IsBlocked(def);
 	}
 
 	private bool ShouldScale(Inventory inventory, ItemIndex itemIndex, out ItemDef itemDef)
@@ -233,7 +257,7 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 			return text;
 		}
 		ItemDef itemDef = FindItemDefForDescToken(token);
-		if (!ShouldScale(itemDef))
+		if (!ShouldDescribe(itemDef))
 		{
 			return text;
 		}
@@ -322,7 +346,12 @@ public sealed class ExponentialModsPlugin : BaseUnityPlugin
 			current = stack;
 		}
 		int next = _config.GetNextRung(current);
-		return _cachedTooltip + $"\n<color=#88D5FF>Next pickup: {current:N0} → {next:N0} (+{next - current:N0})</color>";
+		string suffix = _cachedTooltip + $"\n<color=#88D5FF>Next pickup: {current:N0} → {next:N0} (+{next - current:N0})</color>";
+		if (_config.RequireArtifact.Value && ExponentialArtifact.GetState() != ArtifactGateState.On)
+		{
+			suffix += "\n<color=#FFB454>Inactive: enable Artifact of Exponents</color>";
+		}
+		return suffix;
 	}
 
 	private void RebuildTooltipTokenCache()
